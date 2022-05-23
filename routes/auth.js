@@ -10,64 +10,52 @@ router.post("/register", async (req, res) => {
     email: req.body.email,
     password: CryptoJS.AES.encrypt(
       req.body.password,
-      process.env.PASS_SEC
+      process.env.PASSWORD_SECRET
     ).toString(),
   });
 
   try {
     const savedUser = await newUser.save();
     res.status(201).json(savedUser);
-  } catch(err) {
-    // res.status(500).json(err);
-    throw err;
+  } catch (err) {
+    res.status(500).json(err);
   }
 });
 
+// LOGIN 1
+router.post("/login", async (req, res) => {
+  try {
+    //User is model in here
+    const user = await User.findOne({
+      username: req.body.username,
+    });
 
-//LOGIN
-router.post('/login', async (req, res) => {
-    try{
+    if (!user) return res.status(404).json("there is no user");
 
-        //User is model in here 
-        const user = await User.findOne(
-            {
-                userName: req.body.username
-            }
-        );
+    //şifrelenmiş passwordu burada geri döndürüyoruz
+    const hashedPassword = CryptoJS.AES.decrypt(
+      user.password,
+      process.env.PASSWORD_SECRET
+    );
 
-        !user && res.status(401).json("Wrong User Name");
+    const originalPassword = hashedPassword.toString(CryptoJS.enc.Utf8);
 
-        //şifrelenmiş passwordu burada geri döndürüyoruz
-        const hashedPassword = CryptoJS.AES.decrypt(
-            user.password,
-            process.env.PASSWORD_SECRET
-        );
+    originalPassword !== req.body.password &&
+      res.status(401).json("wrong password");
 
+      const accessToken = jwt.sign({
+          id:user._id, 
+          isAdmin:user.isAdmin,
 
-        const originalPassword = hashedPassword.toString(CryptoJS.enc.Utf8);
+      }, process.env.JWT_SECRET,
+      {expiresIn:"3d"})
 
-        const inputPassword = req.body.password;
-        
-        originalPassword != inputPassword && 
-            res.status(401).json("Wrong Password");
+    const { password, ...others } = user._doc;
 
-        const accessToken = jwt.sign(
-        {
-            id: user._id,
-            isAdmin: user.isAdmin,
-        },
-        process.env.JWT_SEC,
-            {expiresIn:"3d"}
-        );
-  
-        const { password, ...others } = user._doc;  
-        res.status(200).json({...others, accessToken});
-
-    }catch(err){
-        res.status(500).json(err);
-    }
-
+    res.status(200).json({...others,accessToken});
+  } catch (err) {
+    res.status(500).json(err);
+  }
 });
 
 module.exports = router;
-// we will register and login in this router much more secure
